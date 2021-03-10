@@ -1,0 +1,42 @@
+@Library('global-shared-pipeline-lib')_
+
+try {
+podTemplate(containers: [
+    containerTemplate(name: 'python', image: 'python:rc-alpine3.12', ttyEnabled: true, command: 'cat'),
+    containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
+            ],
+            volumes: [
+                hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock'),
+            ],
+
+  ) {
+
+    node(POD_LABEL) {
+        stage('Check code') {
+            container('docker') {
+                stage('Checkout code') {
+                    gitCheckout(
+						branch: "master",
+						url: "https://github.com/jojanmathew/jenkins-global-lib/",
+						credentialsId: "GIT"
+                        )
+					}
+                stage('Build image') {
+                    app = docker.build("us.gcr.io/devops-306004/python:10001", "--no-cache=true --force-rm --file $WORKSPACE/build/python/app/Dockerfile .")
+                }
+                stage('Push image') {
+                     docker.withRegistry('https://us.gcr.io', 'gcr:devops-306004') {
+                     app.push()
+                     app.push("latest")
+                    }
+                }
+            }
+        }
+
+    }
+}		   
+}catch (e) {
+    // If there was an exception thrown, the build failed
+    currentBuild.result = "FAILED"
+    throw e
+} 

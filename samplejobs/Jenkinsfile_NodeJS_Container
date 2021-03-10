@@ -1,0 +1,24 @@
+@Library('global-shared-pipeline-lib')_
+
+try {
+podTemplate(containers: [
+   containerTemplate(name: 'node', image: 'node:15.10.0-alpine3.10', ttyEnabled: true, command: 'cat'),
+    
+  ]) {
+
+    node(POD_LABEL) {
+        stage('Check node') {
+            container('node') {
+                stage('Checking Node Version') {
+                    sh 'node --version'
+                }
+            }
+        }
+
+    }
+  }		   
+}catch (e) {
+    // If there was an exception thrown, the build failed
+    currentBuild.result = "FAILED"
+    throw e
+} 
