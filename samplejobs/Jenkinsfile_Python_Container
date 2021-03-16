@@ -1,41 +1,61 @@
+env.credentail_id="gcr:devops-307515"
+env.gcrurl="https://us.gcr.io"
 @Library('global-shared-pipeline-lib')_
 
 try {
-podTemplate(containers: [
-    containerTemplate(name: 'python', image: 'python:rc-alpine3.12', ttyEnabled: true, command: 'cat'),
-    containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
-            ],
-            volumes: [
-                hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock'),
-            ],
+	podTemplate(containers: [
+		containerTemplate(name: 'python', image: 'python:rc-alpine3.12', ttyEnabled: true, command: 'cat'),
+		containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
+				],
+				volumes: [
+					hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock'),
+				],
 
-  ) {
+	  ) {
 
-    node(POD_LABEL) {
-        stage('Check code') {
-            container('docker') {
-                stage('Checkout code') {
-                    gitCheckout(
-						branch: "master",
-						url: "https://github.com/jojanmathew/jenkins-global-lib/",
-						credentialsId: "GIT"
-                        )
+		node(POD_LABEL) {
+			stage('Check code') {
+				container('docker') {
+					stage('Checkout code') {
+						gitCheckout(
+							branch: "master",
+							url: "https://github.com/jojanmathew/jenkins-global-lib/",
+							credentialsId: "GIT"
+						)
 					}
-                stage('Build image') {
-                    app = docker.build("us.gcr.io/devops-306004/python:10001", "--no-cache=true --force-rm --file $WORKSPACE/build/python/app/Dockerfile .")
-                }
-                stage('Push image') {
-                     docker.withRegistry('https://us.gcr.io', 'gcr:devops-306004') {
-                     app.push()
-                     app.push("latest")
-                    }
-                }
+					stage('Build and push docker image') {
+						buildAndPushDockerImage(
+							remote: "us.gcr.io",
+							project: "devops-307515",
+							imageName: "python",
+							tag: "${BUILD_NUMBER}",
+							otherargs: "--no-cache=true --force-rm",
+							filePath: "$WORKSPACE/build/python/app/Dockerfile"
+						)
+					}
+					stage('Deploy-Artifacts') {
+					    sh """
+					    apk add curl
+						curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.7.0/bin/linux/amd64/kubectl
+						chmod +x ./kubectl
+						mv ./kubectl /usr/local/bin/kubectl
+						pwd
+						kubectl -n devops apply -f k8s/deployment.yaml --validate=false
+						sleep 500
+						"""
+						//sh "kubectl -n $ENVIRONMENT apply -f k8s/deployment.yaml"
+						//sh 'kubectl -n $ENVIRONMENT apply -f devops/env/hpa/$ENVIRONMENT.yaml'
+						//sh "kubectl -n $ENVIRONMENT apply -f devops/k8s/service.yaml"
+                        
             }
-        }
 
-    }
-}		   
-}catch (e) {
+				}
+			}
+			
+
+		}
+	}		   
+} catch (e) {
     // If there was an exception thrown, the build failed
     currentBuild.result = "FAILED"
     throw e
