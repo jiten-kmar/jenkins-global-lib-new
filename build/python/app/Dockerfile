@@ -1,11 +1,9 @@
 FROM python:rc-alpine3.12
 RUN mkdir /app
-WORKDIR /app
 RUN ls -ltr
-RUN pwd
 ADD * /app/
-RUN ls -ltr
-RUN ls -ltr python
+WORKDIR /app
+RUN pwd
 RUN pip install -r python/app/requirements.txt
 EXPOSE 5000
-CMD ["python", "/app/main.py"]
+CMD ["python", "python/app/main.py"]
